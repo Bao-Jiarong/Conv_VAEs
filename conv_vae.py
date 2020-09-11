@@ -27,9 +27,10 @@ class CONV_VAE(tf.keras.Model):
         self.flatten   = tf.keras.layers.Flatten()
         self.en_dense0 = tf.keras.layers.Dense(filters << 3, activation="relu", name = "en_fc0")
         # self.en_bn2    = tf.keras.layers.BatchNormalization(name = "en_bn2")
-        self.en_dense1 = tf.keras.layers.Dense(self.latent_dim, name = "en_fc1")
-        self.en_dense2 = tf.keras.layers.Dense(self.latent_dim, name = "en_fc2")
-        self.en_act    = tf.keras.layers.Activation("sigmoid", name = "en_main_out")
+
+        # Latent Space
+        self.la_dense1= tf.keras.layers.Dense(units = self.latent_dim   , name = "la_fc1")
+        self.la_dense2= tf.keras.layers.Dense(units = self.latent_dim   , name = "la_fc2")
 
         # Decoder Layers
         self.de_dense0 = tf.keras.layers.Dense(filters << 3, activation="relu", name = "de_fc0")
@@ -52,14 +53,13 @@ class CONV_VAE(tf.keras.Model):
     def encoder(self, x, training = None):
         # Encoder Space
         # print(x.shape)
+        x = self.en_conv0(x)   #; print(x.shape)
         x = self.en_conv1(x)   #; print(x.shape)
         x = self.en_conv2(x)   #; print(x.shape)
-        # x = self.en_bn1(x)     #; print(x.shape)
+        # x = self.en_bn1(x)   #; print(x.shape)
         x = self.flatten(x)    #; print(x.shape)
-        x = self.en_dense1(x)  #; print(x.shape)
-        # x = self.en_bn2(x)     #; print(x.shape)
-        x = self.en_dense2(x)  #; print(x.shape)
-        x = self.en_act(x)     #; print(x.shape)
+        x = self.en_dense0(x)  #; print(x.shape)
+        # x = self.en_bn2(x)   #; print(x.shape)
         return x
 
     #................................................................................
@@ -68,9 +68,9 @@ class CONV_VAE(tf.keras.Model):
     def decoder(self, x, training = None):
         # Decoder Space
         x = self.de_dense1(x)  #; print(x.shape)
-        # x = self.de_bn1(x)     #; print(x.shape)
+        # x = self.de_bn1(x)   #; print(x.shape)
         x = self.de_dense2(x)  #; print(x.shape)
-        # x = self.de_bn2(x)     #; print(x.shape)
+        # x = self.de_bn2(x)   #; print(x.shape)
         x = self.reshape(x)    #; print(x.shape)
         x = self.de_deconv1(x) #; print(x.shape)
         x = self.de_deconv2(x) #; print(x.shape)
@@ -78,18 +78,19 @@ class CONV_VAE(tf.keras.Model):
         return x
 
     #................................................................................
-    #
+    # Latent Space
+    #................................................................................
+    def latent_space(self,x):
+        mu  = self.la_dense1(x)
+        std = self.la_dense2(x)
+        shape = mu.shape[1:]
+        eps = tf.random.normal(shape, 0.0, 1.0)
+        x = mu + eps * (tf.math.exp(std/2.0))
+        return x
+
     #................................................................................
     def call(self, inputs, training = None):
-        # inputs = self.in_layer(inputs)
-        self.encoded = self.encoder(inputs, training)
-
-        shape = self.encoded.shape[1:]
-        # print(shape)
-        # import sys;sys,exit()
-        x = tf.random.uniform(shape, minval=0.0, maxval=1.0)
-        de_input = self.encoded + x
-
-        self.decoded = self.decoder(de_input, training)
-        # import sys; sys.exit()
-        return self.decoded
+        x = self.encoder(inputs, training)
+        x = self.latent_space(x)
+        x = self.decoder(x, training)
+        return x
